@@ -20,6 +20,8 @@ const BlackjackGame = () => {
   const [aiExplanation, setAiExplanation] = useState('');
   const [aiPlayerIndex, setAiPlayerIndex] = useState(null);
   const [selectedAIStyles, setSelectedAIStyles] = useState({ player2: null, player3: null });
+  const [mistakes, setMistakes] = useState([]);
+  const [showMistakeLog, setShowMistakeLog] = useState(false);
 
   const suits = ['♥', '♦', '♣', '♠'];
   const suitNames = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -104,22 +106,34 @@ const BlackjackGame = () => {
     
     const aggressivePrompt = `You are an aggressive blackjack player. Always hit if total is 16 or less. Hit on soft 17. Double frequently. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
     const safePrompt = `You are a safe blackjack player. Stand on 15+. Stand on 12+ vs strong dealer. Only double 10-11 vs weak dealer. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
+    const optimalPrompt = `You are playing optimal blackjack basic strategy. Hard hands: stand 17+, hit 16 vs 7-A, hit 12-16 vs 4-6 only. Soft hands: stand 19+, stand 18 vs 6 or less, hit 17 or less vs 7-A. Double 11 vs all except A, 10 vs 2-9, 9 vs 3-6. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      let selectedPrompt = safePrompt;
+      let temperature = 0.3;
+      
+      if (playStyle === 'aggressive') {
+        selectedPrompt = aggressivePrompt;
+        temperature = 0.9;
+      } else if (playStyle === 'optimal') {
+        selectedPrompt = optimalPrompt;
+        temperature = 0.1;
+      }
+      
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: playStyle === 'aggressive' ? aggressivePrompt : safePrompt }] }],
-          generationConfig: { temperature: playStyle === 'aggressive' ? 0.9 : 0.3, maxOutputTokens: 100 }
+          contents: [{ parts: [{ text: selectedPrompt }] }],
+          generationConfig: { temperature: temperature, maxOutputTokens: 100 }
         })
       });
       const data = await response.json();
       const responseText = data.candidates[0].content.parts[0].text;
       const actionMatch = responseText.match(/ACTION:\s*(HIT|STAND|DOUBLE)/i);
       const reasonMatch = responseText.match(/REASON:\s*(.+)/i);
-      return { action: actionMatch ? actionMatch[1].toUpperCase() : 'STAND', reason: reasonMatch ? reasonMatch[1].trim() : 'Playing it safe' };
+      return { action: actionMatch ? actionMatch[1].toUpperCase() : 'STAND', reason: reasonMatch ? reasonMatch[1].trim() : 'Following strategy' };
     } catch (error) {
       console.error('AI Error:', error);
       return getRuleBasedDecision(hand, dealerUpCard, chips, bet, playStyle);
@@ -138,7 +152,49 @@ const BlackjackGame = () => {
       if (isSoft && score === 17) return { action: 'HIT', reason: 'Soft 17, hitting' };
       if (score <= 16) return { action: 'HIT', reason: 'Fortune favors bold!' };
       return { action: 'STAND', reason: 'Got strong hand' };
+    } else if (playStyle === 'optimal') {
+      // Optimal Basic Strategy
+      // Hard Totals
+      if (!isSoft) {
+        if (score >= 17) return { action: 'STAND', reason: 'Hard 17 or higher' };
+        if (score === 16) {
+          if (dealerValue >= 7) return { action: 'HIT', reason: 'Hard 16 vs strong dealer' };
+          return { action: 'STAND', reason: 'Hard 16 vs weak dealer' };
+        }
+        if (score === 15) {
+          if (dealerValue >= 7) return { action: 'HIT', reason: 'Hard 15 vs strong dealer' };
+          return { action: 'STAND', reason: 'Hard 15 vs weak dealer' };
+        }
+        if (score === 14 || score === 13 || score === 12) {
+          if (dealerValue >= 4 && dealerValue <= 6) return { action: 'STAND', reason: 'Stand vs weak dealer' };
+          return { action: 'HIT', reason: 'Hit vs strong dealer' };
+        }
+        if (score <= 11) return { action: 'HIT', reason: 'Cannot bust' };
+      }
+      // Soft Totals
+      else {
+        if (score >= 19) return { action: 'STAND', reason: 'Soft 19 or higher' };
+        if (score === 18) {
+          if (dealerValue >= 7) return { action: 'HIT', reason: 'Soft 18 vs strong dealer' };
+          return { action: 'STAND', reason: 'Soft 18 vs weak dealer' };
+        }
+        if (score === 17 || score === 16 || score === 15) {
+          if (dealerValue >= 4 && dealerValue <= 6 && canDouble) return { action: 'DOUBLE', reason: 'Double soft hand vs weak dealer' };
+          return { action: 'HIT', reason: 'Hit soft hand' };
+        }
+        if (score <= 14) return { action: 'HIT', reason: 'Hit low soft hand' };
+      }
+      // Double Down Opportunities
+      if (canDouble && hand.length === 2) {
+        if (score === 11) {
+          if (dealerValue !== 11) return { action: 'DOUBLE', reason: 'Double 11 vs all except A' };
+        }
+        if (score === 10 && dealerValue >= 2 && dealerValue <= 9) return { action: 'DOUBLE', reason: 'Double 10 vs weak dealer' };
+        if (score === 9 && dealerValue >= 3 && dealerValue <= 6) return { action: 'DOUBLE', reason: 'Double 9 vs weak dealer' };
+      }
+      return { action: 'STAND', reason: 'Following basic strategy' };
     } else {
+      // Safe play style
       if (score >= 15) return { action: 'STAND', reason: 'Playing safe on 15+' };
       if (score >= 12) return { action: 'STAND', reason: 'Better safe than bust' };
       if (canDouble && score === 11 && dealerValue >= 4 && dealerValue <= 6) return { action: 'DOUBLE', reason: 'Safe double' };
@@ -239,7 +295,14 @@ const BlackjackGame = () => {
         // If next player is AI, have them place bet automatically
         if (newPlayers[nextPlayerIndex].isAI) {
           setTimeout(() => {
-            const aiBet = newPlayers[nextPlayerIndex].aiStyle === 'aggressive' ? 100 : 50;
+            let aiBet;
+            if (newPlayers[nextPlayerIndex].aiStyle === 'aggressive') {
+              aiBet = 100;
+            } else if (newPlayers[nextPlayerIndex].aiStyle === 'optimal') {
+              aiBet = 75; // Balanced bet for optimal play
+            } else {
+              aiBet = 50; // Safe play
+            }
             const finalBet = Math.min(aiBet, newPlayers[nextPlayerIndex].chips);
             
             // Directly update and move on (avoid recursive call)
@@ -335,11 +398,39 @@ const BlackjackGame = () => {
     // Don't call handleAITurn here
   };
 
+  const checkForMistake = (hand, dealerUpCard, action, chips, bet) => {
+    const optimalDecision = getRuleBasedDecision(hand, dealerUpCard, chips, bet, 'optimal');
+    if (optimalDecision.action !== action) {
+      const score = calculateScore(hand);
+      const hasAce = hand.some(c => c.value === 'A');
+      const isSoft = hasAce && score <= 21;
+      
+      const mistake = {
+        hand: `${hand.map(c => c.value + c.suit).join(', ')}`,
+        score: score,
+        soft: isSoft,
+        dealerCard: `${dealerUpCard.value}${dealerUpCard.suit}`,
+        playerAction: action,
+        optimalAction: optimalDecision.action,
+        reason: optimalDecision.reason,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      
+      setMistakes(prev => [...prev, mistake]);
+      return true;
+    }
+    return false;
+  };
   const hit = (playerIndex = null) => {
     const actualPlayerIndex = playerIndex !== null ? playerIndex : currentPlayer;
     console.log('HIT called for player index:', actualPlayerIndex);
     console.log('Current player:', currentPlayer);
     console.log('Players array:', players);
+    
+    // Check for mistake if Player 1 (human) is hitting
+    if (actualPlayerIndex === 0 && players[actualPlayerIndex].hand.length > 0) {
+      checkForMistake(players[actualPlayerIndex].hand, dealerHand[0], 'HIT', players[actualPlayerIndex].chips, players[actualPlayerIndex].bet);
+    }
     
     const result = dealCard(deck, dealtCards);
     const newPlayers = [...players];
@@ -394,6 +485,11 @@ const BlackjackGame = () => {
 
   const stand = (playerIndex = null) => {
     const actualPlayerIndex = playerIndex !== null ? playerIndex : currentPlayer;
+    
+    // Check for mistake if Player 1 (human) is standing
+    if (actualPlayerIndex === 0 && players[actualPlayerIndex].hand.length > 0) {
+      checkForMistake(players[actualPlayerIndex].hand, dealerHand[0], 'STAND', players[actualPlayerIndex].chips, players[actualPlayerIndex].bet);
+    }
     
     if (actualPlayerIndex < numPlayers - 1) {
       const nextIdx = actualPlayerIndex + 1;
@@ -491,6 +587,11 @@ const BlackjackGame = () => {
     const actualPlayerIndex = playerIndex !== null ? playerIndex : currentPlayer;
     const player = players[actualPlayerIndex];
     
+    // Check for mistake if Player 1 (human) is doubling down
+    if (actualPlayerIndex === 0 && players[actualPlayerIndex].hand.length > 0) {
+      checkForMistake(players[actualPlayerIndex].hand, dealerHand[0], 'DOUBLE', players[actualPlayerIndex].chips, players[actualPlayerIndex].bet);
+    }
+    
     if (player.chips < player.bet) {
       setMessage('Not enough chips to double down!');
       return;
@@ -544,6 +645,7 @@ const BlackjackGame = () => {
     setMessage('Place your bets');
     setCurrentPlayer(0);
     setDealerScore(0);
+    // Don't reset mistakes - keep them for the entire session
     const newPlayers = [...players];
     for (let i = 0; i < numPlayers; i++) {
       newPlayers[i].hand = [];
@@ -567,6 +669,8 @@ const BlackjackGame = () => {
     setMessage('Select number of players');
     setDeck(createDeck());
     setSelectedAIStyles({ player2: null, player3: null });
+    setMistakes([]);  // Reset mistakes when ending game
+    setShowMistakeLog(false);  // Close the modal
     const newPlayers = [
       { hand: [], score: 0, chips: 10000, bet: 0, name: 'Player 1', isAI: false, aiStyle: null },
       { hand: [], score: 0, chips: 10000, bet: 0, name: 'Player 2', isAI: true, aiStyle: null },
@@ -603,13 +707,16 @@ const BlackjackGame = () => {
   }
 
   if (gameState === 'aiSelect') {
-    return (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)' }}><div style={{ textAlign: 'center', maxWidth: '800px', padding: '40px' }}><h1 style={{ fontSize: '60px', fontWeight: 'bold', marginBottom: '20px', background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'serif' }}>Configure AI Players</h1><div style={{ fontSize: '20px', color: '#fcd34d', marginBottom: '40px' }}>You control Player 1. Select play styles for AI players:</div>{numPlayers >= 2 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 2 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player2 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player2 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}{numPlayers >= 3 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 3 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player3 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player3 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}<button onClick={confirmAIStyles} disabled={(numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)} style={{ padding: '20px 48px', borderRadius: '16px', fontWeight: 'bold', fontSize: '24px', color: 'white', background: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'rgba(128,128,128,0.5)' : 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)', border: '3px solid rgba(255,255,255,0.3)', cursor: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'not-allowed' : 'pointer', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)', marginTop: '32px' }}>Start Game</button><button onClick={() => { setGameState('modeSelect'); setSelectedAIStyles({ player2: null, player3: null }); }} style={{ padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: 'rgba(128,128,128,0.5)', border: '2px solid rgba(255,255,255,0.3)', cursor: 'pointer', marginTop: '16px', marginLeft: '16px' }}>Back</button></div></div>);
+    return (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)' }}><div style={{ textAlign: 'center', maxWidth: '800px', padding: '40px' }}><h1 style={{ fontSize: '60px', fontWeight: 'bold', marginBottom: '20px', background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'serif' }}>Configure AI Players</h1><div style={{ fontSize: '20px', color: '#fcd34d', marginBottom: '40px' }}>You control Player 1. Select play styles for AI players:</div>{numPlayers >= 2 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 2 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player2 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player2 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player2 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}{numPlayers >= 3 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 3 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player3 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player3 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player3 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}<button onClick={confirmAIStyles} disabled={(numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)} style={{ padding: '20px 48px', borderRadius: '16px', fontWeight: 'bold', fontSize: '24px', color: 'white', background: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'rgba(128,128,128,0.5)' : 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)', border: '3px solid rgba(255,255,255,0.3)', cursor: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'not-allowed' : 'pointer', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)', marginTop: '32px' }}>Start Game</button><button onClick={() => { setGameState('modeSelect'); setSelectedAIStyles({ player2: null, player3: null }); }} style={{ padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: 'rgba(128,128,128,0.5)', border: '2px solid rgba(255,255,255,0.3)', cursor: 'pointer', marginTop: '16px', marginLeft: '16px' }}>Back</button></div></div>);
   }
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)', position: 'relative' }}>
       <div style={{ width: '100%', maxWidth: '1400px' }}>
         <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
           <button onClick={endGame} style={{ padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>End Game</button>
+        </div>
+        <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
+          <button onClick={() => setShowMistakeLog(!showMistakeLog)} style={{ padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: mistakes.length > 0 ? 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)' : 'rgba(245, 158, 11, 0.3)', border: mistakes.length > 0 ? '2px solid #fbbf24' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>📋 Mistakes ({mistakes.length})</button>
         </div>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <h1 style={{ fontSize: '60px', fontWeight: 'bold', marginBottom: '8px', background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'serif' }}>Blackjack Table</h1>
@@ -632,7 +739,7 @@ const BlackjackGame = () => {
                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                   <div style={{ display: 'inline-block', background: 'rgba(0,0,0,0.4)', padding: '8px 16px', borderRadius: '9999px' }}>
                     <div style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{player.name}</div>
-                    {player.isAI && player.aiStyle && (<div style={{ color: player.aiStyle === 'aggressive' ? '#ef4444' : '#3b82f6', fontSize: '14px', fontStyle: 'italic', marginTop: '4px' }}>{player.aiStyle === 'aggressive' ? '🔥 Aggressive AI' : '🛡️ Safe AI'}</div>)}
+                    {player.isAI && player.aiStyle && (<div style={{ color: player.aiStyle === 'aggressive' ? '#ef4444' : player.aiStyle === 'optimal' ? '#a78bfa' : '#3b82f6', fontSize: '14px', fontStyle: 'italic', marginTop: '4px' }}>{player.aiStyle === 'aggressive' ? '🔥 Aggressive AI' : player.aiStyle === 'optimal' ? '⭐ Optimal AI' : '🛡️ Safe AI'}</div>)}
                     <div style={{ color: '#fcd34d', fontSize: '16px' }}>Score: {player.score}</div>
                     <div style={{ color: '#22c55e', fontSize: '14px' }}>Chips: ${player.chips}</div>
                     {player.bet > 0 && <div style={{ color: '#ef4444', fontSize: '14px' }}>Bet: ${player.bet}</div>}
@@ -671,6 +778,38 @@ const BlackjackGame = () => {
           {values.map(value => (<div key={value} style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '6px', padding: '4px', textAlign: 'center' }}><div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', marginBottom: '2px' }}>{value}</div><div style={{ color: '#22c55e', fontSize: '9px' }}>{groupedCounts[value].remaining}</div><div style={{ color: '#ef4444', fontSize: '9px' }}>{groupedCounts[value].dealt}</div></div>))}
         </div>
       </div>
+      {showMistakeLog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'linear-gradient(180deg, #1a0505 0%, #4a0e0e 100%)', borderRadius: '16px', border: '3px solid #fbbf24', padding: '32px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ color: '#ffd700', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>📋 Mistake Log</h2>
+              <button onClick={() => setShowMistakeLog(false)} style={{ background: 'rgba(255, 255, 255, 0.2)', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', borderRadius: '8px', width: '40px', height: '40px' }}>×</button>
+            </div>
+            {mistakes.length === 0 ? (
+              <div style={{ color: '#22c55e', fontSize: '18px', textAlign: 'center', padding: '32px' }}>✓ No mistakes so far! Keep playing optimally!</div>
+            ) : (
+              <div>
+                <div style={{ color: '#fcd34d', fontSize: '14px', marginBottom: '16px', fontWeight: 'bold' }}>Total Mistakes: {mistakes.length}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {mistakes.map((mistake, idx) => (
+                    <div key={idx} style={{ background: 'rgba(0, 0, 0, 0.4)', border: '2px solid #ef4444', borderRadius: '12px', padding: '16px' }}>
+                      <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Mistake #{idx + 1} - {mistake.timestamp}</div>
+                      <div style={{ color: '#fcd34d', fontSize: '13px', marginBottom: '4px' }}>Your Hand: {mistake.hand}</div>
+                      <div style={{ color: '#fcd34d', fontSize: '13px', marginBottom: '4px' }}>Your Score: {mistake.score} {mistake.soft ? '(soft)' : '(hard)'}</div>
+                      <div style={{ color: '#fcd34d', fontSize: '13px', marginBottom: '8px' }}>Dealer: {mistake.dealerCard}</div>
+                      <div style={{ background: 'rgba(255, 255, 255, 0.1)', borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
+                        <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '4px' }}>❌ You played: <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>{mistake.playerAction}</span></div>
+                        <div style={{ color: '#22c55e', fontSize: '12px', marginBottom: '4px' }}>✓ Optimal play: <span style={{ fontWeight: 'bold', color: '#fbbf24' }}>{mistake.optimalAction}</span></div>
+                        <div style={{ color: '#a78bfa', fontSize: '12px', fontStyle: 'italic', marginTop: '8px' }}>💡 {mistake.reason}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
