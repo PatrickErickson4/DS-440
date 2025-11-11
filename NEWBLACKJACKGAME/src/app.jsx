@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 
 const BlackjackGame = () => {
@@ -104,6 +103,12 @@ const BlackjackGame = () => {
     const hasAce = hand.some(c => c.value === 'A');
     const isSoft = hasAce && score <= 21;
     
+    // If random, pick a random style for this decision
+    let decisionStyle = playStyle;
+    if (playStyle === 'random') {
+      decisionStyle = getRandomStyle();
+    }
+    
     const aggressivePrompt = `You are an aggressive blackjack player. Always hit if total is 16 or less. Hit on soft 17. Double frequently. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
     const safePrompt = `You are a safe blackjack player. Stand on 15+. Stand on 12+ vs strong dealer. Only double 10-11 vs weak dealer. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
     const optimalPrompt = `You are playing optimal blackjack basic strategy. Hard hands: stand 17+, hit 16 vs 7-A, hit 12-16 vs 4-6 only. Soft hands: stand 19+, stand 18 vs 6 or less, hit 17 or less vs 7-A. Double 11 vs all except A, 10 vs 2-9, 9 vs 3-6. Current: ${playerName} hand ${hand.map(c => c.value + c.suit).join(', ')}, score ${score} ${isSoft ? '(soft)' : ''}, dealer ${dealerUpCard.value}${dealerUpCard.suit}, can double ${canDouble}. Respond ONLY: ACTION: [HIT/STAND/DOUBLE] - REASON: [10 words max]`;
@@ -113,10 +118,10 @@ const BlackjackGame = () => {
       let selectedPrompt = safePrompt;
       let temperature = 0.3;
       
-      if (playStyle === 'aggressive') {
+      if (decisionStyle === 'aggressive') {
         selectedPrompt = aggressivePrompt;
         temperature = 0.9;
-      } else if (playStyle === 'optimal') {
+      } else if (decisionStyle === 'optimal') {
         selectedPrompt = optimalPrompt;
         temperature = 0.1;
       }
@@ -136,7 +141,7 @@ const BlackjackGame = () => {
       return { action: actionMatch ? actionMatch[1].toUpperCase() : 'STAND', reason: reasonMatch ? reasonMatch[1].trim() : 'Following strategy' };
     } catch (error) {
       console.error('AI Error:', error);
-      return getRuleBasedDecision(hand, dealerUpCard, chips, bet, playStyle);
+      return getRuleBasedDecision(hand, dealerUpCard, chips, bet, decisionStyle);
     }
   };
 
@@ -260,10 +265,19 @@ const BlackjackGame = () => {
     setCurrentPlayer(0);
   };
 
+  const getRandomStyle = () => {
+    const styles = ['aggressive', 'optimal', 'safe'];
+    return styles[Math.floor(Math.random() * styles.length)];
+  };
+
   const confirmAIStyles = () => {
     const newPlayers = [...players];
-    if (numPlayers >= 2) newPlayers[1].aiStyle = selectedAIStyles.player2;
-    if (numPlayers >= 3) newPlayers[2].aiStyle = selectedAIStyles.player3;
+    if (numPlayers >= 2) {
+      newPlayers[1].aiStyle = selectedAIStyles.player2;
+    }
+    if (numPlayers >= 3) {
+      newPlayers[2].aiStyle = selectedAIStyles.player3;
+    }
     setPlayers(newPlayers);
     setGameState('betting');
     setMessage('Place your bets');
@@ -300,6 +314,8 @@ const BlackjackGame = () => {
               aiBet = 100;
             } else if (newPlayers[nextPlayerIndex].aiStyle === 'optimal') {
               aiBet = 75; // Balanced bet for optimal play
+            } else if (newPlayers[nextPlayerIndex].aiStyle === 'random') {
+              aiBet = 75; // Random players use balanced bet
             } else {
               aiBet = 50; // Safe play
             }
@@ -322,7 +338,16 @@ const BlackjackGame = () => {
                 // If that player is also AI
                 if (updatedPlayers[nextNext].isAI) {
                   setTimeout(() => {
-                    const aiBet2 = updatedPlayers[nextNext].aiStyle === 'aggressive' ? 100 : 50;
+                    let aiBet2;
+                    if (updatedPlayers[nextNext].aiStyle === 'aggressive') {
+                      aiBet2 = 100;
+                    } else if (updatedPlayers[nextNext].aiStyle === 'optimal') {
+                      aiBet2 = 75;
+                    } else if (updatedPlayers[nextNext].aiStyle === 'random') {
+                      aiBet2 = 75;
+                    } else {
+                      aiBet2 = 50;
+                    }
                     const finalBet2 = Math.min(aiBet2, updatedPlayers[nextNext].chips);
                     
                     updatedPlayers[nextNext].chips -= finalBet2;
@@ -707,7 +732,7 @@ const BlackjackGame = () => {
   }
 
   if (gameState === 'aiSelect') {
-    return (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)' }}><div style={{ textAlign: 'center', maxWidth: '800px', padding: '40px' }}><h1 style={{ fontSize: '60px', fontWeight: 'bold', marginBottom: '20px', background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'serif' }}>Configure AI Players</h1><div style={{ fontSize: '20px', color: '#fcd34d', marginBottom: '40px' }}>You control Player 1. Select play styles for AI players:</div>{numPlayers >= 2 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 2 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player2 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player2 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player2 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}{numPlayers >= 3 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 3 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player3 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player3 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player3 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button></div></div>)}<button onClick={confirmAIStyles} disabled={(numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)} style={{ padding: '20px 48px', borderRadius: '16px', fontWeight: 'bold', fontSize: '24px', color: 'white', background: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'rgba(128,128,128,0.5)' : 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)', border: '3px solid rgba(255,255,255,0.3)', cursor: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'not-allowed' : 'pointer', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)', marginTop: '32px' }}>Start Game</button><button onClick={() => { setGameState('modeSelect'); setSelectedAIStyles({ player2: null, player3: null }); }} style={{ padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: 'rgba(128,128,128,0.5)', border: '2px solid rgba(255,255,255,0.3)', cursor: 'pointer', marginTop: '16px', marginLeft: '16px' }}>Back</button></div></div>);
+    return (<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)' }}><div style={{ textAlign: 'center', maxWidth: '800px', padding: '40px' }}><h1 style={{ fontSize: '60px', fontWeight: 'bold', marginBottom: '20px', background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: 'serif' }}>Configure AI Players</h1><div style={{ fontSize: '20px', color: '#fcd34d', marginBottom: '40px' }}>You control Player 1. Select play styles for AI players:</div>{numPlayers >= 2 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 2 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player2 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player2 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player2 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player2: 'random'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player2 === 'random' ? 'linear-gradient(180deg, #ec4899 0%, #be185d 100%)' : 'rgba(236, 72, 153, 0.3)', border: selectedAIStyles.player2 === 'random' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🎲 Random</button></div></div>)}{numPlayers >= 3 && (<div style={{ background: 'rgba(0,0,0,0.6)', padding: '24px', borderRadius: '16px', marginBottom: '24px', border: '2px solid #fbbf24' }}><div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>Player 3 (AI)</div><div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'aggressive'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'aggressive' ? 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)' : 'rgba(220, 38, 38, 0.3)', border: selectedAIStyles.player3 === 'aggressive' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🔥 Aggressive</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'optimal'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'optimal' ? 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)' : 'rgba(139, 92, 246, 0.3)', border: selectedAIStyles.player3 === 'optimal' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>⭐ Optimal</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'safe'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'safe' ? 'linear-gradient(180deg, #2563eb 0%, #1e40af 100%)' : 'rgba(37, 99, 235, 0.3)', border: selectedAIStyles.player3 === 'safe' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🛡️ Safe</button><button onClick={() => setSelectedAIStyles({...selectedAIStyles, player3: 'random'})} style={{ padding: '16px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '20px', color: 'white', background: selectedAIStyles.player3 === 'random' ? 'linear-gradient(180deg, #ec4899 0%, #be185d 100%)' : 'rgba(236, 72, 153, 0.3)', border: selectedAIStyles.player3 === 'random' ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>🎲 Random</button></div></div>)}<button onClick={confirmAIStyles} disabled={(numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)} style={{ padding: '20px 48px', borderRadius: '16px', fontWeight: 'bold', fontSize: '24px', color: 'white', background: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'rgba(128,128,128,0.5)' : 'linear-gradient(180deg, #16a34a 0%, #15803d 100%)', border: '3px solid rgba(255,255,255,0.3)', cursor: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) ? 'not-allowed' : 'pointer', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)', marginTop: '32px' }}>Start Game</button><button onClick={() => { setGameState('modeSelect'); setSelectedAIStyles({ player2: null, player3: null }); }} style={{ padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', fontSize: '16px', color: 'white', background: 'rgba(128,128,128,0.5)', border: '2px solid rgba(255,255,255,0.3)', cursor: 'pointer', marginTop: '16px', marginLeft: '16px' }}>Back</button></div></div>);
   }
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)', position: 'relative' }}>
@@ -739,7 +764,7 @@ const BlackjackGame = () => {
                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                   <div style={{ display: 'inline-block', background: 'rgba(0,0,0,0.4)', padding: '8px 16px', borderRadius: '9999px' }}>
                     <div style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>{player.name}</div>
-                    {player.isAI && player.aiStyle && (<div style={{ color: player.aiStyle === 'aggressive' ? '#ef4444' : player.aiStyle === 'optimal' ? '#a78bfa' : '#3b82f6', fontSize: '14px', fontStyle: 'italic', marginTop: '4px' }}>{player.aiStyle === 'aggressive' ? '🔥 Aggressive AI' : player.aiStyle === 'optimal' ? '⭐ Optimal AI' : '🛡️ Safe AI'}</div>)}
+                    {player.isAI && player.aiStyle && (<div style={{ color: player.aiStyle === 'aggressive' ? '#ef4444' : player.aiStyle === 'optimal' ? '#a78bfa' : player.aiStyle === 'random' ? '#ec4899' : '#3b82f6', fontSize: '14px', fontStyle: 'italic', marginTop: '4px' }}>{player.aiStyle === 'aggressive' ? '🔥 Aggressive AI' : player.aiStyle === 'optimal' ? '⭐ Optimal AI' : player.aiStyle === 'random' ? '🎲 Random AI' : '🛡️ Safe AI'}</div>)}
                     <div style={{ color: '#fcd34d', fontSize: '16px' }}>Score: {player.score}</div>
                     <div style={{ color: '#22c55e', fontSize: '14px' }}>Chips: ${player.chips}</div>
                     {player.bet > 0 && <div style={{ color: '#ef4444', fontSize: '14px' }}>Bet: ${player.bet}</div>}
