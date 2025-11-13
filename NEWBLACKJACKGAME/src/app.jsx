@@ -21,6 +21,7 @@ const BlackjackGame = () => {
   const [selectedAIStyles, setSelectedAIStyles] = useState({ player2: null, player3: null });
   const [mistakes, setMistakes] = useState([]);
   const [showMistakeLog, setShowMistakeLog] = useState(false);
+  const [bestMoveRecommendation, setBestMoveRecommendation] = useState(null);
 
   const suits = ['♥', '♦', '♣', '♠'];
   const suitNames = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -418,6 +419,7 @@ const BlackjackGame = () => {
     setCurrentPlayer(0);
     setGameState('playing');
     setMessage(`${newPlayers[0].name}'s turn`);
+    setBestMoveRecommendation(null);  // Reset best move for new hand
     
     // Remove this - Player 1 is always human!
     // Don't call handleAITurn here
@@ -445,6 +447,20 @@ const BlackjackGame = () => {
       return true;
     }
     return false;
+  };
+
+  const getBestMove = () => {
+    if (players[0].hand.length === 0) return;
+    
+    const optimalDecision = getRuleBasedDecision(
+      players[0].hand,
+      dealerHand[0],
+      players[0].chips,
+      players[0].bet,
+      'optimal'
+    );
+    
+    setBestMoveRecommendation(optimalDecision);
   };
   const hit = (playerIndex = null) => {
     const actualPlayerIndex = playerIndex !== null ? playerIndex : currentPlayer;
@@ -670,6 +686,7 @@ const BlackjackGame = () => {
     setMessage('Place your bets');
     setCurrentPlayer(0);
     setDealerScore(0);
+    setBestMoveRecommendation(null);  // Reset best move for new round
     // Don't reset mistakes - keep them for the entire session
     const newPlayers = [...players];
     for (let i = 0; i < numPlayers; i++) {
@@ -776,6 +793,17 @@ const BlackjackGame = () => {
               </div>
             ))}
           </div>
+          {gameState === 'playing' && currentPlayer === 0 && !aiThinking && (
+            <div style={{ textAlign: 'center', margin: '24px 0' }}>
+              <button onClick={getBestMove} style={{ padding: '12px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '18px', color: 'white', background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)', border: '2px solid #fbbf24', cursor: 'pointer', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)' }}>💡 Best Move</button>
+              {bestMoveRecommendation && (
+                <div style={{ marginTop: '16px', display: 'inline-block', background: 'rgba(245, 158, 11, 0.1)', border: '2px solid #f59e0b', borderRadius: '12px', padding: '16px 24px' }}>
+                  <div style={{ color: '#fbbf24', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>Recommended: {bestMoveRecommendation.action}</div>
+                  <div style={{ color: '#fcd34d', fontSize: '14px', fontStyle: 'italic' }}>💭 {bestMoveRecommendation.reason}</div>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ marginTop: '48px', display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
             {gameState === 'betting' && !players[currentPlayer].isAI && (<><button onClick={() => placeBet(10)} disabled={players[currentPlayer].chips < 10} style={{ padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', color: 'white', background: '#dc2626', border: 'none', cursor: 'pointer', opacity: players[currentPlayer].chips < 10 ? 0.5 : 1 }}>Bet $10</button><button onClick={() => placeBet(50)} disabled={players[currentPlayer].chips < 50} style={{ padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', color: 'white', background: '#dc2626', border: 'none', cursor: 'pointer', opacity: players[currentPlayer].chips < 50 ? 0.5 : 1 }}>Bet $50</button><button onClick={() => placeBet(100)} disabled={players[currentPlayer].chips < 100} style={{ padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', color: 'white', background: '#dc2626', border: 'none', cursor: 'pointer', opacity: players[currentPlayer].chips < 100 ? 0.5 : 1 }}>Bet $100</button></>)}
             {gameState === 'playing' && !players[currentPlayer].isAI && !aiThinking && (
