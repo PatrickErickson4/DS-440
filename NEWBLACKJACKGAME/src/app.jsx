@@ -1,4 +1,6 @@
 
+// GAME WITH SIDE BETS ADDED
+
 import React, { useState, useEffect } from 'react';
 
 const BlackjackGame = () => {
@@ -22,6 +24,10 @@ const BlackjackGame = () => {
   const [mistakes, setMistakes] = useState([]);
   const [showMistakeLog, setShowMistakeLog] = useState(false);
   const [bestMoveRecommendation, setBestMoveRecommendation] = useState(null);
+  const [pairBet, setPairBet] = useState(0);
+  const [pairBetOutcome, setPairBetOutcome] = useState(null);
+  const [hot3Bet, setHot3Bet] = useState(0);
+  const [hot3BetOutcome, setHot3BetOutcome] = useState(null);
 
   const suits = ['♥', '♦', '♣', '♠'];
   const suitNames = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -284,6 +290,138 @@ const BlackjackGame = () => {
     setMessage('Place your bets');
   };
 
+  const placePairBet = (amount) => {
+    const player = players[0];
+    
+    if (amount > player.chips) {
+      setMessage('Not enough chips for Pair bet!');
+      return;
+    }
+
+    const newPlayers = [...players];
+    newPlayers[0].chips -= amount;
+    setPlayers(newPlayers);
+    setPairBet(amount);
+    setMessage(`Pair bet placed: $${amount}`);
+  };
+
+  const placeHot3Bet = (amount) => {
+    const player = players[0];
+    
+    if (amount > player.chips) {
+      setMessage('Not enough chips for Hot 3 bet!');
+      return;
+    }
+
+    const newPlayers = [...players];
+    newPlayers[0].chips -= amount;
+    setPlayers(newPlayers);
+    setHot3Bet(amount);
+    setMessage(`Hot 3 bet placed: $${amount}`);
+  };
+
+  const evaluatePairBet = (hand) => {
+    if (pairBet === 0 || hand.length < 2) return;
+
+    const card1 = hand[0];
+    const card2 = hand[1];
+
+    // Check if same rank
+    if (card1.value === card2.value) {
+      // Check if suited
+      if (card1.suit === card2.suit) {
+        // Suited pair - 20:1
+        const winAmount = pairBet * 20;
+        const newPlayers = [...players];
+        newPlayers[0].chips += pairBet + winAmount;
+        setPlayers(newPlayers);
+        setPairBetOutcome({ won: true, payout: winAmount, type: 'Suited Pair' });
+      } else {
+        // Same rank, different suit - 5:1
+        const winAmount = pairBet * 5;
+        const newPlayers = [...players];
+        newPlayers[0].chips += pairBet + winAmount;
+        setPlayers(newPlayers);
+        setPairBetOutcome({ won: true, payout: winAmount, type: 'Pair' });
+      }
+    } else {
+      // Lost
+      setPairBetOutcome({ won: false, payout: 0, type: 'No Pair' });
+    }
+  };
+
+  const evaluateHot3Bet = (playerHand, dealerUpCard) => {
+    if (hot3Bet === 0 || playerHand.length < 2 || !dealerUpCard) return;
+
+    // Combine player's two cards and dealer's up card
+    const threeCards = [...playerHand.slice(0, 2), dealerUpCard];
+    
+    // Calculate total using blackjack scoring
+    let total = 0;
+    let aces = 0;
+    
+    for (let card of threeCards) {
+      if (card.value === 'A') {
+        aces += 1;
+        total += 11;
+      } else if (['K', 'Q', 'J'].includes(card.value)) {
+        total += 10;
+      } else {
+        total += parseInt(card.value);
+      }
+    }
+    
+    // Adjust for aces if needed
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    
+    // Check for three 7s
+    const allSevens = threeCards.every(card => card.value === '7');
+    
+    // Check for suited 21 (all same suit)
+    const allSameSuit = threeCards.every(card => card.suit === threeCards[0].suit);
+    const suited21 = total === 21 && allSameSuit;
+    
+    const newPlayers = [...players];
+    
+    if (allSevens) {
+      // Three 7s - 100:1
+      const winAmount = hot3Bet * 100;
+      newPlayers[0].chips += hot3Bet + winAmount;
+      setPlayers(newPlayers);
+      setHot3BetOutcome({ won: true, payout: winAmount, type: 'Three 7s! 🎰', total });
+    } else if (suited21) {
+      // Suited 21 - 20:1
+      const winAmount = hot3Bet * 20;
+      newPlayers[0].chips += hot3Bet + winAmount;
+      setPlayers(newPlayers);
+      setHot3BetOutcome({ won: true, payout: winAmount, type: 'Suited 21! ♠️', total });
+    } else if (total === 21) {
+      // Any 21 - 4:1
+      const winAmount = hot3Bet * 4;
+      newPlayers[0].chips += hot3Bet + winAmount;
+      setPlayers(newPlayers);
+      setHot3BetOutcome({ won: true, payout: winAmount, type: 'Twenty-One!', total });
+    } else if (total === 20) {
+      // 20 - 2:1
+      const winAmount = hot3Bet * 2;
+      newPlayers[0].chips += hot3Bet + winAmount;
+      setPlayers(newPlayers);
+      setHot3BetOutcome({ won: true, payout: winAmount, type: 'Twenty', total });
+    } else if (total === 19) {
+      // 19 - 1:1
+      const winAmount = hot3Bet * 1;
+      newPlayers[0].chips += hot3Bet + winAmount;
+      setPlayers(newPlayers);
+      setHot3BetOutcome({ won: true, payout: winAmount, type: 'Nineteen', total });
+    } else {
+      // Lost
+      setHot3BetOutcome({ won: false, payout: 0, type: 'No Win', total });
+    }
+  };
+
   const placeBet = (amount) => {
     const player = players[currentPlayer];
     
@@ -420,6 +558,12 @@ const BlackjackGame = () => {
     setGameState('playing');
     setMessage(`${newPlayers[0].name}'s turn`);
     setBestMoveRecommendation(null);  // Reset best move for new hand
+    
+    // Evaluate Pair bet for Player 1 after initial deal
+    evaluatePairBet(newPlayers[0].hand);
+    
+    // Evaluate Hot 3 bet for Player 1 after initial deal
+    evaluateHot3Bet(newPlayers[0].hand, dealerDeal1.card);
     
     // Remove this - Player 1 is always human!
     // Don't call handleAITurn here
@@ -687,6 +831,10 @@ const BlackjackGame = () => {
     setCurrentPlayer(0);
     setDealerScore(0);
     setBestMoveRecommendation(null);  // Reset best move for new round
+    setPairBet(0);  // Reset Pair bet
+    setPairBetOutcome(null);  // Reset Pair bet outcome
+    setHot3Bet(0);  // Reset Hot 3 bet
+    setHot3BetOutcome(null);  // Reset Hot 3 bet outcome
     // Don't reset mistakes - keep them for the entire session
     const newPlayers = [...players];
     for (let i = 0; i < numPlayers; i++) {
@@ -713,6 +861,10 @@ const BlackjackGame = () => {
     setSelectedAIStyles({ player2: null, player3: null });
     setMistakes([]);  // Reset mistakes when ending game
     setShowMistakeLog(false);  // Close the modal
+    setPairBet(0);  // Reset Pair bet
+    setPairBetOutcome(null);  // Reset Pair bet outcome
+    setHot3Bet(0);  // Reset Hot 3 bet
+    setHot3BetOutcome(null);  // Reset Hot 3 bet outcome
     const newPlayers = [
       { hand: [], score: 0, chips: 10000, bet: 0, name: 'Player 1', isAI: false, aiStyle: null },
       { hand: [], score: 0, chips: 10000, bet: 0, name: 'Player 2', isAI: true, aiStyle: null },
@@ -793,6 +945,93 @@ const BlackjackGame = () => {
               </div>
             ))}
           </div>
+          
+          {/* Side Bets Section - Only for Player 1 during betting phase */}
+          {gameState === 'betting' && currentPlayer === 0 && (
+            <div style={{ marginTop: '32px', textAlign: 'center' }}>
+              <div style={{ display: 'inline-block', background: 'rgba(139, 92, 246, 0.2)', border: '2px solid #8b5cf6', borderRadius: '16px', padding: '20px 32px' }}>
+                <div style={{ color: '#a78bfa', fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>💎 Side Bets</div>
+                
+                {/* Pair Bet Section */}
+                <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                  <div style={{ color: '#fcd34d', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                    🃏 Pair Bet
+                  </div>
+                  <div style={{ color: '#fcd34d', fontSize: '12px', marginBottom: '12px' }}>
+                    Same rank: 5:1 | Suited pair: 20:1
+                  </div>
+                  {pairBet === 0 ? (
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={() => placePairBet(5)} disabled={players[0].chips < 5} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 5 ? 'rgba(139, 92, 246, 0.3)' : 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 5 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 5 ? 0.5 : 1 }}>$5</button>
+                      <button onClick={() => placePairBet(10)} disabled={players[0].chips < 10} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 10 ? 'rgba(139, 92, 246, 0.3)' : 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 10 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 10 ? 0.5 : 1 }}>$10</button>
+                      <button onClick={() => placePairBet(25)} disabled={players[0].chips < 25} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 25 ? 'rgba(139, 92, 246, 0.3)' : 'linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 25 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 25 ? 0.5 : 1 }}>$25</button>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#a78bfa', fontSize: '14px', fontWeight: 'bold' }}>
+                      Pair: ${pairBet} ✓
+                    </div>
+                  )}
+                </div>
+
+                {/* Hot 3 Bet Section */}
+                <div>
+                  <div style={{ color: '#fcd34d', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                    🔥 Hot 3 Bet
+                  </div>
+                  <div style={{ color: '#fcd34d', fontSize: '11px', marginBottom: '12px', lineHeight: '1.4' }}>
+                    Ex. Three 7s: 100:1 | Suited 21: 20:1 | 21: 4:1<br/>20: 2:1 | 19: 1:1
+                  </div>
+                  {hot3Bet === 0 ? (
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={() => placeHot3Bet(5)} disabled={players[0].chips < 5} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 5 ? 'rgba(239, 68, 68, 0.3)' : 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 5 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 5 ? 0.5 : 1 }}>$5</button>
+                      <button onClick={() => placeHot3Bet(10)} disabled={players[0].chips < 10} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 10 ? 'rgba(239, 68, 68, 0.3)' : 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 10 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 10 ? 0.5 : 1 }}>$10</button>
+                      <button onClick={() => placeHot3Bet(25)} disabled={players[0].chips < 25} style={{ padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', color: 'white', background: players[0].chips < 25 ? 'rgba(239, 68, 68, 0.3)' : 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)', border: '2px solid rgba(255,255,255,0.3)', cursor: players[0].chips < 25 ? 'not-allowed' : 'pointer', opacity: players[0].chips < 25 ? 0.5 : 1 }}>$25</button>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold' }}>
+                      Hot 3: ${hot3Bet} ✓
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pair Bet Outcome Display - Show during playing phase */}
+          {gameState === 'playing' && (pairBetOutcome || hot3BetOutcome) && (
+            <div style={{ marginTop: '24px', textAlign: 'center' }}>
+              <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {/* Pair Bet Outcome */}
+                {pairBetOutcome && (
+                  <div style={{ display: 'inline-block', background: pairBetOutcome.won ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)', border: pairBetOutcome.won ? '2px solid #22c55e' : '2px solid #ef4444', borderRadius: '12px', padding: '16px 24px', minWidth: '200px' }}>
+                    <div style={{ color: pairBetOutcome.won ? '#22c55e' : '#ef4444', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      {pairBetOutcome.won ? '🃏 Pair WON!' : '❌ Pair Lost'}
+                    </div>
+                    <div style={{ color: '#fcd34d', fontSize: '13px' }}>
+                      {pairBetOutcome.type}
+                      {pairBetOutcome.won && ` - $${pairBetOutcome.payout}`}
+                    </div>
+                  </div>
+                )}
+                {/* Hot 3 Bet Outcome */}
+                {hot3BetOutcome && (
+                  <div style={{ display: 'inline-block', background: hot3BetOutcome.won ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)', border: hot3BetOutcome.won ? '2px solid #22c55e' : '2px solid #ef4444', borderRadius: '12px', padding: '16px 24px', minWidth: '200px' }}>
+                    <div style={{ color: hot3BetOutcome.won ? '#22c55e' : '#ef4444', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      {hot3BetOutcome.won ? '🔥 Hot 3 WON!' : '❌ Hot 3 Lost'}
+                    </div>
+                    <div style={{ color: '#fcd34d', fontSize: '13px' }}>
+                      {hot3BetOutcome.type}
+                      {hot3BetOutcome.won && ` - $${hot3BetOutcome.payout}`}
+                    </div>
+                    <div style={{ color: '#a78bfa', fontSize: '11px', marginTop: '4px' }}>
+                      Total: {hot3BetOutcome.total}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {gameState === 'playing' && currentPlayer === 0 && !aiThinking && (
             <div style={{ textAlign: 'center', margin: '24px 0' }}>
               <button onClick={getBestMove} style={{ padding: '12px 32px', borderRadius: '12px', fontWeight: 'bold', fontSize: '18px', color: 'white', background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)', border: '2px solid #fbbf24', cursor: 'pointer', boxShadow: '0 4px 15px rgba(245, 158, 11, 0.4)' }}>💡 Best Move</button>
