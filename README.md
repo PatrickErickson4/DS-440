@@ -13,7 +13,7 @@
 
 ---
 
-## 🎮 Overview
+## Overview
 
 A comprehensive multiplayer blackjack game built with React featuring:
 - **1-3 players** (Player 1 is human, others are AI)
@@ -26,7 +26,7 @@ A comprehensive multiplayer blackjack game built with React featuring:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### File Structure
 ```
@@ -52,7 +52,7 @@ app.jsx (1200+ lines)
 
 ---
 
-## 📊 State Management
+## State Management
 
 ### Game State Variables
 ```javascript
@@ -100,7 +100,7 @@ hot3BetOutcome     // Result object {won, payout, type, total}
 
 ---
 
-## 🔧 Core Functions
+## Core Functions
 
 ### 1. Deck Management
 
@@ -158,7 +158,7 @@ Tracks dealt vs remaining cards for each value.
 
 ---
 
-## 🎯 Game Flow
+## Game Flow
 
 ### Phase 1: Mode Selection
 ```
@@ -261,7 +261,7 @@ Show "Next Round" button
 
 ---
 
-## 🤖 AI System
+## AI System
 
 ### Decision Making Process
 
@@ -323,7 +323,7 @@ Picks a random style (aggressive/optimal/safe) for each decision, creating unpre
 
 ---
 
-## 💎 Side Bets
+## Side Bets
 
 ### Pair Bet
 **Evaluated:** After initial deal (Player 1's first 2 cards)
@@ -361,7 +361,7 @@ Picks a random style (aggressive/optimal/safe) for each decision, creating unpre
 
 ---
 
-## 📚 Strategy & Mistake Tracking
+## Strategy & Mistake Tracking
 
 ### Mistake Detection
 
@@ -402,7 +402,7 @@ Shows optimal move for current situation without penalty.
 
 ---
 
-## 🎨 UI Components
+## UI Components
 
 ### 1. Mode Selection Screen
 - Large title with gold gradient
@@ -466,7 +466,7 @@ Full-screen overlay showing all mistakes:
 
 ---
 
-## 📱 Mobile Responsiveness
+## Mobile Responsiveness
 
 ### Responsive Typography
 All font sizes use `clamp()` for smooth scaling:
@@ -506,7 +506,7 @@ Examples:
 
 ---
 
-## 🔑 Key Code Patterns
+## Key Code Patterns
 
 ### 1. Immutable State Updates
 ```javascript
@@ -543,7 +543,7 @@ const hit = (playerIndex = null) => {
 
 ---
 
-## 🐛 Common Issues & Solutions
+## Common Issues & Solutions
 
 ### Issue: AI doesn't make decisions
 **Solution:** Check Gemini API key in `.env` file:
@@ -562,7 +562,7 @@ VITE_GEMINI_API_KEY=your_key_here
 
 ---
 
-## 🚀 Future Enhancements
+## Future Enhancements
 
 Potential features to add:
 1. **Split hands** - When player has pair
@@ -578,7 +578,7 @@ Potential features to add:
 
 ---
 
-## 📝 Code Maintenance Tips
+## Code Maintenance Tips
 
 ### Adding New AI Styles
 1. Add style to `getRandomStyle()` array
@@ -603,7 +603,7 @@ All payout logic is in evaluation functions:
 
 ---
 
-## 📞 Support & Questions
+## Support & Questions
 
 For questions about the code:
 1. Check this README first
