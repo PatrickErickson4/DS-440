@@ -17,14 +17,16 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
       <button 
         onClick={() => setSelectedAIStyles({...selectedAIStyles, [playerKey]: style})} 
         style={{ 
-          padding: '16px 32px', 
-          borderRadius: '12px', 
+          padding: 'clamp(10px, 2vw, 16px) clamp(16px, 3vw, 32px)', 
+          borderRadius: 'clamp(8px, 1.5vw, 12px)', 
           fontWeight: 'bold', 
-          fontSize: '20px', 
+          fontSize: 'clamp(14px, 2.5vw, 20px)', 
           color: 'white', 
           background: isSelected ? `linear-gradient(180deg, ${colors.from} 0%, ${colors.to} 100%)` : colors.alpha, 
           border: isSelected ? '3px solid #ffd700' : '2px solid rgba(255,255,255,0.3)', 
-          cursor: 'pointer' 
+          cursor: 'pointer',
+          flex: '1 1 auto',
+          minWidth: '100px'
         }}
       >
         {emoji} {label}
@@ -38,13 +40,14 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center', 
-      background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)' 
+      background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)',
+      padding: '20px'
     }}>
-      <div style={{ textAlign: 'center', maxWidth: '800px', padding: '40px' }}>
+      <div style={{ textAlign: 'center', maxWidth: '800px', width: '100%', padding: 'clamp(20px, 4vw, 40px)' }}>
         <h1 style={{ 
-          fontSize: '60px', 
+          fontSize: 'clamp(32px, 8vw, 60px)', 
           fontWeight: 'bold', 
-          marginBottom: '20px', 
+          marginBottom: 'clamp(16px, 3vw, 20px)', 
           background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', 
           WebkitBackgroundClip: 'text', 
           WebkitTextFillColor: 'transparent', 
@@ -52,22 +55,22 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
         }}>
           Configure AI Players
         </h1>
-        <div style={{ fontSize: '20px', color: '#fcd34d', marginBottom: '40px' }}>
+        <div style={{ fontSize: 'clamp(14px, 2.5vw, 20px)', color: '#fcd34d', marginBottom: 'clamp(24px, 5vw, 40px)' }}>
           You control Player 1. Select play styles for AI players:
         </div>
         
         {numPlayers >= 2 && (
           <div style={{ 
             background: 'rgba(0,0,0,0.6)', 
-            padding: '24px', 
-            borderRadius: '16px', 
-            marginBottom: '24px', 
+            padding: 'clamp(16px, 3vw, 24px)', 
+            borderRadius: 'clamp(12px, 2vw, 16px)', 
+            marginBottom: 'clamp(16px, 3vw, 24px)', 
             border: '2px solid #fbbf24' 
           }}>
-            <div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>
+            <div style={{ fontSize: 'clamp(18px, 3vw, 24px)', color: 'white', marginBottom: 'clamp(12px, 2vw, 16px)', fontWeight: 'bold' }}>
               Player 2 (AI)
             </div>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 'clamp(8px, 2vw, 16px)', justifyContent: 'center', flexWrap: 'wrap' }}>
               <AIStyleButton playerKey="player2" style="aggressive" label="Aggressive" emoji="🔥" />
               <AIStyleButton playerKey="player2" style="optimal" label="Optimal" emoji="⭐" />
               <AIStyleButton playerKey="player2" style="safe" label="Safe" emoji="🛡️" />
@@ -79,15 +82,15 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
         {numPlayers >= 3 && (
           <div style={{ 
             background: 'rgba(0,0,0,0.6)', 
-            padding: '24px', 
-            borderRadius: '16px', 
-            marginBottom: '24px', 
+            padding: 'clamp(16px, 3vw, 24px)', 
+            borderRadius: 'clamp(12px, 2vw, 16px)', 
+            marginBottom: 'clamp(16px, 3vw, 24px)', 
             border: '2px solid #fbbf24' 
           }}>
-            <div style={{ fontSize: '24px', color: 'white', marginBottom: '16px', fontWeight: 'bold' }}>
+            <div style={{ fontSize: 'clamp(18px, 3vw, 24px)', color: 'white', marginBottom: 'clamp(12px, 2vw, 16px)', fontWeight: 'bold' }}>
               Player 3 (AI)
             </div>
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 'clamp(8px, 2vw, 16px)', justifyContent: 'center', flexWrap: 'wrap' }}>
               <AIStyleButton playerKey="player3" style="aggressive" label="Aggressive" emoji="🔥" />
               <AIStyleButton playerKey="player3" style="optimal" label="Optimal" emoji="⭐" />
               <AIStyleButton playerKey="player3" style="safe" label="Safe" emoji="🛡️" />
@@ -100,10 +103,10 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
           onClick={onConfirm} 
           disabled={(numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)} 
           style={{ 
-            padding: '20px 48px', 
-            borderRadius: '16px', 
+            padding: 'clamp(14px, 2.5vw, 20px) clamp(24px, 5vw, 48px)', 
+            borderRadius: 'clamp(12px, 2vw, 16px)', 
             fontWeight: 'bold', 
-            fontSize: '24px', 
+            fontSize: 'clamp(16px, 3vw, 24px)', 
             color: 'white', 
             background: ((numPlayers >= 2 && !selectedAIStyles.player2) || (numPlayers >= 3 && !selectedAIStyles.player3)) 
               ? 'rgba(128,128,128,0.5)' 
@@ -113,7 +116,7 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
               ? 'not-allowed' 
               : 'pointer', 
             boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)', 
-            marginTop: '32px' 
+            marginTop: 'clamp(20px, 4vw, 32px)' 
           }}
         >
           Start Game
@@ -121,16 +124,16 @@ const AISelect = ({ numPlayers, selectedAIStyles, setSelectedAIStyles, onConfirm
         <button 
           onClick={onBack} 
           style={{ 
-            padding: '12px 24px', 
-            borderRadius: '12px', 
+            padding: 'clamp(10px, 2vw, 12px) clamp(16px, 3vw, 24px)', 
+            borderRadius: 'clamp(8px, 1.5vw, 12px)', 
             fontWeight: 'bold', 
-            fontSize: '16px', 
+            fontSize: 'clamp(14px, 2vw, 16px)', 
             color: 'white', 
             background: 'rgba(128,128,128,0.5)', 
             border: '2px solid rgba(255,255,255,0.3)', 
             cursor: 'pointer', 
-            marginTop: '16px', 
-            marginLeft: '16px' 
+            marginTop: 'clamp(12px, 2vw, 16px)', 
+            marginLeft: 'clamp(12px, 2vw, 16px)' 
           }}
         >
           Back

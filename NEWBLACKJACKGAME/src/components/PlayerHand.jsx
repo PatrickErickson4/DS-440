@@ -19,43 +19,43 @@ const PlayerHand = ({ player, isActive, gameState }) => {
       background: isActive && (gameState === 'playing' || gameState === 'betting') 
         ? 'rgba(255, 215, 0, 0.1)' 
         : 'transparent', 
-      borderRadius: '16px', 
-      padding: '16px', 
+      borderRadius: 'clamp(12px, 2vw, 16px)', 
+      padding: 'clamp(12px, 2vw, 16px)', 
       border: isActive && (gameState === 'playing' || gameState === 'betting') 
         ? '2px solid #ffd700' 
         : 'none' 
     }}>
-      <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+      <div style={{ textAlign: 'center', marginBottom: 'clamp(12px, 2vw, 16px)' }}>
         <div style={{ 
           display: 'inline-block', 
           background: 'rgba(0,0,0,0.4)', 
-          padding: '8px 16px', 
+          padding: 'clamp(6px, 1vw, 8px) clamp(12px, 2vw, 16px)', 
           borderRadius: '9999px' 
         }}>
-          <div style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>
+          <div style={{ color: 'white', fontSize: 'clamp(16px, 2.5vw, 20px)', fontWeight: 'bold' }}>
             {player.name}
           </div>
           {aiStyleInfo && (
             <div style={{ 
               color: aiStyleInfo.color, 
-              fontSize: '14px', 
+              fontSize: 'clamp(11px, 2vw, 14px)', 
               fontStyle: 'italic', 
-              marginTop: '4px' 
+              marginTop: 'clamp(2px, 0.5vw, 4px)' 
             }}>
               {aiStyleInfo.emoji} {aiStyleInfo.label}
             </div>
           )}
-          <div style={{ color: '#fcd34d', fontSize: '16px' }}>Score: {player.score}</div>
-          <div style={{ color: '#22c55e', fontSize: '14px' }}>Chips: ${player.chips}</div>
+          <div style={{ color: '#fcd34d', fontSize: 'clamp(13px, 2vw, 16px)' }}>Score: {player.score}</div>
+          <div style={{ color: '#22c55e', fontSize: 'clamp(12px, 1.8vw, 14px)' }}>Chips: ${player.chips}</div>
           {player.bet > 0 && (
-            <div style={{ color: '#ef4444', fontSize: '14px' }}>Bet: ${player.bet}</div>
+            <div style={{ color: '#ef4444', fontSize: 'clamp(12px, 1.8vw, 14px)' }}>Bet: ${player.bet}</div>
           )}
         </div>
       </div>
       <div style={{ 
         display: 'flex', 
         justifyContent: 'center', 
-        gap: '8px', 
+        gap: 'clamp(6px, 1vw, 8px)', 
         flexWrap: 'wrap' 
       }}>
         {player.hand.map((card, i) => (

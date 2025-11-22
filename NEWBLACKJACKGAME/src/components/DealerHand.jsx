@@ -9,21 +9,21 @@ const DealerHand = ({ dealerHand, dealerScore, gameState }) => {
     : dealerScore;
 
   return (
-    <div style={{ marginBottom: '64px', textAlign: 'center' }}>
+    <div style={{ marginBottom: 'clamp(32px, 8vw, 64px)', textAlign: 'center' }}>
       <div style={{ 
         display: 'inline-block', 
         background: 'rgba(0,0,0,0.4)', 
-        padding: '8px 24px', 
+        padding: 'clamp(6px, 1vw, 8px) clamp(12px, 2vw, 24px)', 
         borderRadius: '9999px' 
       }}>
-        <div style={{ color: 'white', fontSize: '24px', fontWeight: 'bold' }}>Dealer</div>
-        <div style={{ color: '#fcd34d', fontSize: '20px' }}>Value: {displayScore}</div>
+        <div style={{ color: 'white', fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 'bold' }}>Dealer</div>
+        <div style={{ color: '#fcd34d', fontSize: 'clamp(14px, 2.5vw, 20px)' }}>Value: {displayScore}</div>
       </div>
       <div style={{ 
         display: 'flex', 
         justifyContent: 'center', 
-        gap: '12px', 
-        marginTop: '16px', 
+        gap: 'clamp(8px, 1.5vw, 12px)', 
+        marginTop: 'clamp(12px, 2vw, 16px)', 
         flexWrap: 'wrap' 
       }}>
         {dealerHand.map((card, i) => (

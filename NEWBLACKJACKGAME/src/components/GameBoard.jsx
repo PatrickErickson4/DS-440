@@ -93,6 +93,46 @@ const GameBoard = ({
   // AI turn handler
   const handleAITurn = async (currentPlayers, playerIndex, currentDeck, currentDealtCards, currentDealerHand) => {
     const player = currentPlayers[playerIndex];
+    
+    // Check if AI already has 21 (blackjack or hit 21)
+    if (player.score === 21) {
+      // Check if it's a natural blackjack (2 cards)
+      if (player.hand.length === 2) {
+        setMessage(`${player.name} has Blackjack! 🎉`);
+      } else {
+        setMessage(`${player.name} has 21!`);
+      }
+      
+      // Move to next player after a brief pause
+      setTimeout(() => {
+        if (playerIndex < numPlayers - 1) {
+          const nextIdx = playerIndex + 1;
+          setCurrentPlayer(nextIdx);
+          
+          // Check if next player has blackjack
+          if (currentPlayers[nextIdx].score === 21 && currentPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${currentPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (currentPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(currentPlayers, nextIdx, currentDeck, currentDealtCards, currentDealerHand), 1500);
+            }
+          } else if (currentPlayers[nextIdx].score === 21) {
+            setMessage(`${currentPlayers[nextIdx].name} has 21!`);
+            if (currentPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(currentPlayers, nextIdx, currentDeck, currentDealtCards, currentDealerHand), 1500);
+            }
+          } else {
+            setMessage(`${currentPlayers[nextIdx].name}'s turn`);
+            if (currentPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(currentPlayers, nextIdx, currentDeck, currentDealtCards, currentDealerHand), 1000);
+            }
+          }
+        } else {
+          dealerTurn();
+        }
+      }, 1500);
+      return;
+    }
+    
     setAiThinking(true);
     setCurrentPlayer(playerIndex);
     setMessage(`${player.name} is thinking...`);
@@ -234,8 +274,6 @@ const GameBoard = ({
     setDealerScore(calculateScore([dealerDeal1.card, dealerDeal2.card]));
     setCurrentPlayer(0);
     setGameState('playing');
-    setMessage(`${newPlayers[0].name}'s turn`);
-    setBestMoveRecommendation(null);
     
     // Evaluate side bets for Player 1
     const pairResult = evaluatePairBet(newPlayers[0].hand, pairBet);
@@ -254,6 +292,47 @@ const GameBoard = ({
         newPlayers[0].chips += hot3Result.totalReturn;
         setPlayers([...newPlayers]);
       }
+    }
+    
+    // Check for blackjacks and determine first player to act
+    let firstPlayerToAct = 0;
+    
+    // Find first player without blackjack
+    for (let p = 0; p < numPlayers; p++) {
+      if (newPlayers[p].score === 21) {
+        // Natural blackjack!
+        newPlayers[p].hasBlackjack = true;
+      } else {
+        if (firstPlayerToAct === p) {
+          break; // Found first player to act
+        }
+        firstPlayerToAct = p;
+      }
+    }
+    
+    // If everyone has blackjack, go straight to dealer
+    if (firstPlayerToAct >= numPlayers || newPlayers.every(p => p.score === 21)) {
+      setMessage('Everyone has Blackjack! Dealer\'s turn.');
+      setBestMoveRecommendation(null);
+      setTimeout(() => dealerTurn(), 2000);
+      return;
+    }
+    
+    // Set message based on first player
+    if (newPlayers[firstPlayerToAct].score === 21) {
+      setMessage(`${newPlayers[firstPlayerToAct].name} has Blackjack!`);
+    } else {
+      setMessage(`${newPlayers[firstPlayerToAct].name}'s turn`);
+    }
+    
+    setCurrentPlayer(firstPlayerToAct);
+    setBestMoveRecommendation(null);
+    
+    // If first player to act is AI and doesn't have blackjack, start their turn
+    if (newPlayers[firstPlayerToAct].isAI && newPlayers[firstPlayerToAct].score < 21) {
+      setTimeout(() => {
+        handleAITurn(newPlayers, firstPlayerToAct, newDeck, newDealtCards, [dealerDeal1.card, dealerDeal2.card]);
+      }, 1500);
     }
   };
 
@@ -298,34 +377,65 @@ const GameBoard = ({
     setPlayers(newPlayers);
     setCurrentPlayer(actualPlayerIndex);
 
+    // Check if player busted
     if (newPlayers[actualPlayerIndex].score > 21) {
       setMessage(`${newPlayers[actualPlayerIndex].name} BUSTS!`);
+      setAiThinking(false);
+      setAiExplanation('');
       setTimeout(() => {
         if (actualPlayerIndex < numPlayers - 1) {
           const nextIdx = actualPlayerIndex + 1;
           setCurrentPlayer(nextIdx);
-          setMessage(`${newPlayers[nextIdx].name}'s turn`);
-          if (newPlayers[nextIdx].isAI) {
-            setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+          
+          // Check if next player has blackjack
+          if (newPlayers[nextIdx].score === 21 && newPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${newPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1500);
+            }
+          } else {
+            setMessage(`${newPlayers[nextIdx].name}'s turn`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+            }
           }
         } else {
           dealerTurn();
         }
       }, 1500);
-    } else if (newPlayers[actualPlayerIndex].score === 21) {
+    } 
+    // Check if player got 21 - turn is over
+    else if (newPlayers[actualPlayerIndex].score === 21) {
+      // Check if it's a natural blackjack (only possible with 2 cards at start)
+      const isBlackjack = newPlayers[actualPlayerIndex].hand.length === 2;
+      setMessage(`${newPlayers[actualPlayerIndex].name} has ${isBlackjack ? 'Blackjack! 🎉' : '21!'}`);
+      setAiThinking(false);
+      setAiExplanation('');
+      
       setTimeout(() => {
         if (actualPlayerIndex < numPlayers - 1) {
           const nextIdx = actualPlayerIndex + 1;
           setCurrentPlayer(nextIdx);
-          setMessage(`${newPlayers[nextIdx].name}'s turn`);
-          if (newPlayers[nextIdx].isAI) {
-            setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+          
+          // Check if next player has blackjack
+          if (newPlayers[nextIdx].score === 21 && newPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${newPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1500);
+            }
+          } else {
+            setMessage(`${newPlayers[nextIdx].name}'s turn`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+            }
           }
         } else {
           dealerTurn();
         }
       }, 1000);
-    } else if (newPlayers[actualPlayerIndex].isAI) {
+    } 
+    // Player has less than 21, AI should continue, human waits for input
+    else if (newPlayers[actualPlayerIndex].isAI) {
       setTimeout(() => {
         handleAITurn(newPlayers, actualPlayerIndex, result.newDeck, result.newDealtCards, dealerHand);
       }, 500);
@@ -347,15 +457,29 @@ const GameBoard = ({
       if (mistake) setMistakes(prev => [...prev, mistake]);
     }
     
+    // Clear AI thinking state
+    setAiThinking(false);
+    setAiExplanation('');
+    
     if (actualPlayerIndex < numPlayers - 1) {
       const nextIdx = actualPlayerIndex + 1;
       setCurrentPlayer(nextIdx);
-      setMessage(`${players[nextIdx].name}'s turn`);
       
-      if (players[nextIdx].isAI) {
-        setTimeout(() => {
-          handleAITurn(players, nextIdx, deck, dealtCards, dealerHand);
-        }, 1000);
+      // Check if next player has blackjack
+      if (players[nextIdx].score === 21 && players[nextIdx].hand.length === 2) {
+        setMessage(`${players[nextIdx].name} has Blackjack! 🎉`);
+        if (players[nextIdx].isAI) {
+          setTimeout(() => {
+            handleAITurn(players, nextIdx, deck, dealtCards, dealerHand);
+          }, 1500);
+        }
+      } else {
+        setMessage(`${players[nextIdx].name}'s turn`);
+        if (players[nextIdx].isAI) {
+          setTimeout(() => {
+            handleAITurn(players, nextIdx, deck, dealtCards, dealerHand);
+          }, 1000);
+        }
       }
     } else {
       dealerTurn();
@@ -395,15 +519,51 @@ const GameBoard = ({
     setPlayers(newPlayers);
     setCurrentPlayer(actualPlayerIndex);
 
+    // Clear AI thinking state
+    setAiThinking(false);
+    setAiExplanation('');
+
     if (newPlayers[actualPlayerIndex].score > 21) {
       setMessage(`${newPlayers[actualPlayerIndex].name} BUSTS!`);
       setTimeout(() => {
         if (actualPlayerIndex < numPlayers - 1) {
           const nextIdx = actualPlayerIndex + 1;
           setCurrentPlayer(nextIdx);
-          setMessage(`${newPlayers[nextIdx].name}'s turn`);
-          if (newPlayers[nextIdx].isAI) {
-            setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+          
+          // Check if next player has blackjack
+          if (newPlayers[nextIdx].score === 21 && newPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${newPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1500);
+            }
+          } else {
+            setMessage(`${newPlayers[nextIdx].name}'s turn`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+            }
+          }
+        } else {
+          dealerTurn();
+        }
+      }, 1500);
+    } else if (newPlayers[actualPlayerIndex].score === 21) {
+      setMessage(`${newPlayers[actualPlayerIndex].name} has 21!`);
+      setTimeout(() => {
+        if (actualPlayerIndex < numPlayers - 1) {
+          const nextIdx = actualPlayerIndex + 1;
+          setCurrentPlayer(nextIdx);
+          
+          // Check if next player has blackjack
+          if (newPlayers[nextIdx].score === 21 && newPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${newPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1500);
+            }
+          } else {
+            setMessage(`${newPlayers[nextIdx].name}'s turn`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+            }
           }
         } else {
           dealerTurn();
@@ -414,9 +574,18 @@ const GameBoard = ({
         if (actualPlayerIndex < numPlayers - 1) {
           const nextIdx = actualPlayerIndex + 1;
           setCurrentPlayer(nextIdx);
-          setMessage(`${newPlayers[nextIdx].name}'s turn`);
-          if (newPlayers[nextIdx].isAI) {
-            setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+          
+          // Check if next player has blackjack
+          if (newPlayers[nextIdx].score === 21 && newPlayers[nextIdx].hand.length === 2) {
+            setMessage(`${newPlayers[nextIdx].name} has Blackjack! 🎉`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1500);
+            }
+          } else {
+            setMessage(`${newPlayers[nextIdx].name}'s turn`);
+            if (newPlayers[nextIdx].isAI) {
+              setTimeout(() => handleAITurn(newPlayers, nextIdx, result.newDeck, result.newDealtCards, dealerHand), 1000);
+            }
           }
         } else {
           dealerTurn();
@@ -428,6 +597,10 @@ const GameBoard = ({
   // Dealer turn
   const dealerTurn = () => {
     setGameState('dealerTurn');
+    setAiThinking(false);
+    setAiExplanation('');
+    setMessage('Dealer\'s turn');
+    
     let newDealerHand = [...dealerHand];
     let newDeck = [...deck];
     let newDealtCards = [...dealtCards];
@@ -495,20 +668,20 @@ const GameBoard = ({
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center', 
-      padding: '16px', 
+      padding: 'clamp(8px, 2vw, 16px)', 
       background: 'linear-gradient(180deg, #4a0e0e 0%, #1a0505 100%)', 
       position: 'relative' 
     }}>
       <div style={{ width: '100%', maxWidth: '1400px' }}>
         {/* End Game Button */}
-        <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+        <div style={{ position: 'absolute', top: 'clamp(10px, 2vw, 20px)', right: 'clamp(10px, 2vw, 20px)', zIndex: 10 }}>
           <button 
             onClick={onEndGame} 
             style={{ 
-              padding: '12px 24px', 
-              borderRadius: '8px', 
+              padding: 'clamp(8px, 1.5vw, 12px) clamp(12px, 2vw, 24px)', 
+              borderRadius: 'clamp(6px, 1vw, 8px)', 
               fontWeight: 'bold', 
-              fontSize: '16px', 
+              fontSize: 'clamp(12px, 2vw, 16px)', 
               color: 'white', 
               background: 'linear-gradient(180deg, #dc2626 0%, #991b1b 100%)', 
               border: '2px solid rgba(255,255,255,0.3)', 
@@ -520,14 +693,14 @@ const GameBoard = ({
         </div>
         
         {/* Mistake Log Button */}
-        <div style={{ position: 'absolute', top: '20px', left: '20px' }}>
+        <div style={{ position: 'absolute', top: 'clamp(10px, 2vw, 20px)', left: 'clamp(10px, 2vw, 20px)', zIndex: 10 }}>
           <button 
             onClick={() => setShowMistakeLog(!showMistakeLog)} 
             style={{ 
-              padding: '12px 24px', 
-              borderRadius: '8px', 
+              padding: 'clamp(8px, 1.5vw, 12px) clamp(12px, 2vw, 24px)', 
+              borderRadius: 'clamp(6px, 1vw, 8px)', 
               fontWeight: 'bold', 
-              fontSize: '16px', 
+              fontSize: 'clamp(12px, 2vw, 16px)', 
               color: 'white', 
               background: mistakes.length > 0 
                 ? 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)' 
@@ -543,11 +716,11 @@ const GameBoard = ({
         </div>
         
         {/* Title */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(12px, 3vw, 24px)', marginTop: 'clamp(60px, 10vw, 0px)' }}>
           <h1 style={{ 
-            fontSize: '60px', 
+            fontSize: 'clamp(28px, 7vw, 60px)', 
             fontWeight: 'bold', 
-            marginBottom: '8px', 
+            marginBottom: 'clamp(4px, 1vw, 8px)', 
             background: 'linear-gradient(180deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%)', 
             WebkitBackgroundClip: 'text', 
             WebkitTextFillColor: 'transparent', 
@@ -555,17 +728,17 @@ const GameBoard = ({
           }}>
             Blackjack Table
           </h1>
-          <div style={{ fontSize: '16px', color: '#fcd34d' }}>
+          <div style={{ fontSize: 'clamp(12px, 2vw, 16px)', color: '#fcd34d' }}>
             Cards: {deck.length} | Dealt: {dealtCards.length}
           </div>
         </div>
         
         {/* Game Table */}
         <div style={{ 
-          borderRadius: '24px', 
+          borderRadius: 'clamp(12px, 3vw, 24px)', 
           background: 'linear-gradient(180deg, #0a5c3a 0%, #064d2e 100%)', 
-          border: '12px solid #4a1c1c', 
-          padding: '48px' 
+          border: 'clamp(4px, 1.5vw, 12px) solid #4a1c1c', 
+          padding: 'clamp(16px, 4vw, 48px)' 
         }}>
           {/* Dealer Hand */}
           <DealerHand 
@@ -576,27 +749,29 @@ const GameBoard = ({
           
           {/* Message Display */}
           {message && (
-            <div style={{ textAlign: 'center', margin: '32px 0' }}>
+            <div style={{ textAlign: 'center', margin: 'clamp(16px, 4vw, 32px) 0' }}>
               <div style={{ 
                 display: 'inline-block', 
                 background: 'rgba(0,0,0,0.6)', 
-                padding: '16px 32px', 
-                borderRadius: '12px', 
-                border: '2px solid #fbbf24' 
+                padding: 'clamp(12px, 2vw, 16px) clamp(16px, 3vw, 32px)', 
+                borderRadius: 'clamp(8px, 1.5vw, 12px)', 
+                border: '2px solid #fbbf24',
+                maxWidth: '90vw'
               }}>
                 <div style={{ 
                   color: '#fcd34d', 
-                  fontSize: '18px', 
+                  fontSize: 'clamp(14px, 2.5vw, 18px)', 
                   fontWeight: 'bold', 
-                  whiteSpace: 'pre-wrap' 
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
                 }}>
                   {message}
                 </div>
                 {aiThinking && (
                   <div style={{ 
                     color: '#22c55e', 
-                    fontSize: '14px', 
-                    marginTop: '8px', 
+                    fontSize: 'clamp(12px, 2vw, 14px)', 
+                    marginTop: 'clamp(4px, 1vw, 8px)', 
                     fontStyle: 'italic' 
                   }}>
                     🤔 AI is thinking...
@@ -605,8 +780,8 @@ const GameBoard = ({
                 {aiExplanation && (
                   <div style={{ 
                     color: '#fbbf24', 
-                    fontSize: '14px', 
-                    marginTop: '8px', 
+                    fontSize: 'clamp(12px, 2vw, 14px)', 
+                    marginTop: 'clamp(4px, 1vw, 8px)', 
                     fontStyle: 'italic' 
                   }}>
                     💭 {aiExplanation}
@@ -620,12 +795,12 @@ const GameBoard = ({
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: numPlayers === 1 
-              ? 'repeat(1, 1fr)' 
+              ? '1fr' 
               : numPlayers === 2 
-                ? 'repeat(2, 1fr)' 
-                : 'repeat(3, 1fr)', 
-            gap: '32px', 
-            marginTop: '48px' 
+                ? 'repeat(auto-fit, minmax(250px, 1fr))' 
+                : 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: 'clamp(16px, 3vw, 32px)', 
+            marginTop: 'clamp(24px, 5vw, 48px)' 
           }}>
             {players.slice(0, numPlayers).map((player, idx) => (
               <PlayerHand
@@ -651,15 +826,15 @@ const GameBoard = ({
           />
           
           {/* Best Move Button - Only show for human player during their turn */}
-          {gameState === 'playing' && currentPlayer === 0 && !aiThinking && (
-            <div style={{ textAlign: 'center', margin: '24px 0' }}>
+          {gameState === 'playing' && currentPlayer === 0 && !aiThinking && players[0].score < 21 && (
+            <div style={{ textAlign: 'center', margin: 'clamp(16px, 3vw, 24px) 0' }}>
               <button 
                 onClick={getBestMove} 
                 style={{ 
-                  padding: '12px 32px', 
-                  borderRadius: '12px', 
+                  padding: 'clamp(10px, 2vw, 12px) clamp(16px, 3vw, 32px)', 
+                  borderRadius: 'clamp(8px, 1.5vw, 12px)', 
                   fontWeight: 'bold', 
-                  fontSize: '18px', 
+                  fontSize: 'clamp(14px, 2.5vw, 18px)', 
                   color: 'white', 
                   background: 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)', 
                   border: '2px solid #fbbf24', 
@@ -671,24 +846,25 @@ const GameBoard = ({
               </button>
               {bestMoveRecommendation && (
                 <div style={{ 
-                  marginTop: '16px', 
+                  marginTop: 'clamp(12px, 2vw, 16px)', 
                   display: 'inline-block', 
                   background: 'rgba(245, 158, 11, 0.1)', 
                   border: '2px solid #f59e0b', 
-                  borderRadius: '12px', 
-                  padding: '16px 24px' 
+                  borderRadius: 'clamp(8px, 1.5vw, 12px)', 
+                  padding: 'clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px)',
+                  maxWidth: '90vw'
                 }}>
                   <div style={{ 
                     color: '#fbbf24', 
-                    fontSize: '16px', 
+                    fontSize: 'clamp(14px, 2.5vw, 16px)', 
                     fontWeight: 'bold', 
-                    marginBottom: '8px' 
+                    marginBottom: 'clamp(4px, 1vw, 8px)' 
                   }}>
                     Recommended: {bestMoveRecommendation.action}
                   </div>
                   <div style={{ 
                     color: '#fcd34d', 
-                    fontSize: '14px', 
+                    fontSize: 'clamp(12px, 2vw, 14px)', 
                     fontStyle: 'italic' 
                   }}>
                     💭 {bestMoveRecommendation.reason}
@@ -700,11 +876,12 @@ const GameBoard = ({
           
           {/* Action Buttons */}
           <div style={{ 
-            marginTop: '48px', 
+            marginTop: 'clamp(24px, 5vw, 48px)', 
             display: 'flex', 
             justifyContent: 'center', 
-            gap: '16px', 
-            flexWrap: 'wrap' 
+            gap: 'clamp(8px, 2vw, 16px)', 
+            flexWrap: 'wrap',
+            padding: '0 10px'
           }}>
             {gameState === 'betting' && !players[currentPlayer].isAI && (
               <>
@@ -712,14 +889,18 @@ const GameBoard = ({
                   onClick={() => placeBet(10)} 
                   disabled={players[currentPlayer].chips < 10} 
                   style={{ 
-                    padding: '12px 24px', 
-                    borderRadius: '8px', 
+                    padding: 'clamp(10px, 2vw, 12px) clamp(16px, 3vw, 24px)', 
+                    borderRadius: 'clamp(6px, 1vw, 8px)', 
                     fontWeight: 'bold', 
+                    fontSize: 'clamp(14px, 2.5vw, 16px)',
                     color: 'white', 
                     background: '#dc2626', 
                     border: 'none', 
                     cursor: 'pointer', 
-                    opacity: players[currentPlayer].chips < 10 ? 0.5 : 1 
+                    opacity: players[currentPlayer].chips < 10 ? 0.5 : 1,
+                    flex: '1 1 auto',
+                    minWidth: 'clamp(80px, 20vw, 120px)',
+                    maxWidth: '150px'
                   }}
                 >
                   Bet $10
@@ -728,14 +909,18 @@ const GameBoard = ({
                   onClick={() => placeBet(50)} 
                   disabled={players[currentPlayer].chips < 50} 
                   style={{ 
-                    padding: '12px 24px', 
-                    borderRadius: '8px', 
+                    padding: 'clamp(10px, 2vw, 12px) clamp(16px, 3vw, 24px)', 
+                    borderRadius: 'clamp(6px, 1vw, 8px)', 
                     fontWeight: 'bold', 
+                    fontSize: 'clamp(14px, 2.5vw, 16px)',
                     color: 'white', 
                     background: '#dc2626', 
                     border: 'none', 
                     cursor: 'pointer', 
-                    opacity: players[currentPlayer].chips < 50 ? 0.5 : 1 
+                    opacity: players[currentPlayer].chips < 50 ? 0.5 : 1,
+                    flex: '1 1 auto',
+                    minWidth: 'clamp(80px, 20vw, 120px)',
+                    maxWidth: '150px'
                   }}
                 >
                   Bet $50
@@ -744,14 +929,18 @@ const GameBoard = ({
                   onClick={() => placeBet(100)} 
                   disabled={players[currentPlayer].chips < 100} 
                   style={{ 
-                    padding: '12px 24px', 
-                    borderRadius: '8px', 
+                    padding: 'clamp(10px, 2vw, 12px) clamp(16px, 3vw, 24px)', 
+                    borderRadius: 'clamp(6px, 1vw, 8px)', 
                     fontWeight: 'bold', 
+                    fontSize: 'clamp(14px, 2.5vw, 16px)',
                     color: 'white', 
                     background: '#dc2626', 
                     border: 'none', 
                     cursor: 'pointer', 
-                    opacity: players[currentPlayer].chips < 100 ? 0.5 : 1 
+                    opacity: players[currentPlayer].chips < 100 ? 0.5 : 1,
+                    flex: '1 1 auto',
+                    minWidth: 'clamp(80px, 20vw, 120px)',
+                    maxWidth: '150px'
                   }}
                 >
                   Bet $100
@@ -759,19 +948,22 @@ const GameBoard = ({
               </>
             )}
             
-            {gameState === 'playing' && !players[currentPlayer].isAI && !aiThinking && (
+            {gameState === 'playing' && !players[currentPlayer].isAI && !aiThinking && players[currentPlayer].score < 21 && (
               <>
                 <button 
                   onClick={() => hit()} 
                   style={{ 
-                    padding: '16px 40px', 
-                    borderRadius: '12px', 
+                    padding: 'clamp(12px, 2.5vw, 16px) clamp(20px, 4vw, 40px)', 
+                    borderRadius: 'clamp(8px, 1.5vw, 12px)', 
                     fontWeight: 'bold', 
-                    fontSize: '20px', 
+                    fontSize: 'clamp(16px, 3vw, 20px)', 
                     color: 'white', 
                     background: '#dc2626', 
                     border: 'none', 
-                    cursor: 'pointer' 
+                    cursor: 'pointer',
+                    flex: '1 1 auto',
+                    minWidth: 'clamp(100px, 25vw, 140px)',
+                    maxWidth: '180px'
                   }}
                 >
                   Hit
@@ -779,14 +971,17 @@ const GameBoard = ({
                 <button 
                   onClick={() => stand()} 
                   style={{ 
-                    padding: '16px 40px', 
-                    borderRadius: '12px', 
+                    padding: 'clamp(12px, 2.5vw, 16px) clamp(20px, 4vw, 40px)', 
+                    borderRadius: 'clamp(8px, 1.5vw, 12px)', 
                     fontWeight: 'bold', 
-                    fontSize: '20px', 
+                    fontSize: 'clamp(16px, 3vw, 20px)', 
                     color: 'white', 
                     background: '#16a34a', 
                     border: 'none', 
-                    cursor: 'pointer' 
+                    cursor: 'pointer',
+                    flex: '1 1 auto',
+                    minWidth: 'clamp(100px, 25vw, 140px)',
+                    maxWidth: '180px'
                   }}
                 >
                   Stand
@@ -795,14 +990,17 @@ const GameBoard = ({
                   <button 
                     onClick={() => doubleDown()} 
                     style={{ 
-                      padding: '16px 40px', 
-                      borderRadius: '12px', 
+                      padding: 'clamp(12px, 2.5vw, 16px) clamp(20px, 4vw, 40px)', 
+                      borderRadius: 'clamp(8px, 1.5vw, 12px)', 
                       fontWeight: 'bold', 
-                      fontSize: '20px', 
+                      fontSize: 'clamp(16px, 3vw, 20px)', 
                       color: 'white', 
                       background: '#2563eb', 
                       border: 'none', 
-                      cursor: 'pointer' 
+                      cursor: 'pointer',
+                      flex: '1 1 auto',
+                      minWidth: 'clamp(100px, 25vw, 140px)',
+                      maxWidth: '180px'
                     }}
                   >
                     Double
@@ -815,14 +1013,15 @@ const GameBoard = ({
               <button 
                 onClick={onNewRound} 
                 style={{ 
-                  padding: '16px 40px', 
-                  borderRadius: '12px', 
+                  padding: 'clamp(12px, 2.5vw, 16px) clamp(24px, 4vw, 40px)', 
+                  borderRadius: 'clamp(8px, 1.5vw, 12px)', 
                   fontWeight: 'bold', 
-                  fontSize: '20px', 
+                  fontSize: 'clamp(16px, 3vw, 20px)', 
                   color: 'white', 
                   background: '#f59e0b', 
                   border: 'none', 
-                  cursor: 'pointer' 
+                  cursor: 'pointer',
+                  minWidth: 'clamp(140px, 30vw, 200px)'
                 }}
               >
                 Next Round
